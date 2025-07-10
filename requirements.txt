@@ -3,7 +3,6 @@ uvicorn
 pandas
 numpy
 matplotlib
-seaborn
 duckdb
 requests
 beautifulsoup4
