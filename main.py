@@ -535,6 +535,67 @@ async def analyze(request: Request, file: UploadFile = File(None)):
             detail="Internal server error occurred during analysis"
         )
 
+# Add specific endpoints that the test scripts expect
+from pydantic import BaseModel
+
+class WikipediaRequest(BaseModel):
+    url: str
+    analysis_type: str
+
+class CourtDataRequest(BaseModel):
+    analysis_type: str
+    limit: Optional[int] = 10
+
+@app.post("/analyze-wikipedia")
+async def analyze_wikipedia_endpoint(request: WikipediaRequest):
+    """
+    Specific endpoint for Wikipedia analysis
+    """
+    try:
+        logger.info(f"Wikipedia analysis request: {request.url}")
+        
+        if 'list_of_highest-grossing_films' in request.url.lower():
+            # Use the existing Wikipedia analysis function
+            result = await process_wikipedia_films_analysis(f"Analyze {request.url} for {request.analysis_type}")
+            return JSONResponse(content=result)
+        else:
+            return JSONResponse(
+                content={
+                    "error": "Only highest-grossing films Wikipedia analysis is currently supported",
+                    "supported_urls": ["https://en.wikipedia.org/wiki/List_of_highest-grossing_films"]
+                },
+                status_code=400
+            )
+    
+    except Exception as e:
+        logger.error(f"Error in Wikipedia analysis: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Wikipedia analysis failed: {str(e)}")
+
+@app.post("/analyze-court-data")
+async def analyze_court_data_endpoint(request: CourtDataRequest):
+    """
+    Specific endpoint for court data analysis
+    """
+    try:
+        logger.info(f"Court data analysis request: {request.analysis_type}")
+        
+        if request.analysis_type == "case_count_by_state":
+            # Use the existing court analysis function
+            result = await process_court_judgments_analysis()
+            return JSONResponse(content=result)
+        else:
+            return JSONResponse(
+                content={
+                    "error": "Only case_count_by_state analysis is currently supported",
+                    "supported_types": ["case_count_by_state"]
+                },
+                status_code=400
+            )
+    
+    except Exception as e:
+        logger.error(f"Error in court data analysis: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Court data analysis failed: {str(e)}")
+
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 8000))
     host = os.getenv("HOST", "0.0.0.0")
