@@ -1,23 +1,18 @@
 # Render.com deployment configuration
-# This file tells Render how to build and deploy your app
-
-# Build settings
-buildCommand = "pip install -r requirements.txt"
-startCommand = "python main.py"
-
-# Service settings
-[service]
-type = "web"
-name = "data-analyst-agent"
-env = "python3"
-plan = "free"  # or "starter" for paid plan
-
-# Environment variables
-[env]
-PORT = "8000"
-HOST = "0.0.0.0"
-LOG_LEVEL = "INFO"
-
-# Health check
-[healthCheck]
-path = "/health"
+services:
+  - type: web
+    name: data-analyst-agent
+    env: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: python main.py
+    envVars:
+      - key: PORT
+        value: 8000
+      - key: HOST
+        value: 0.0.0.0
+      - key: LOG_LEVEL
+        value: INFO
+      - key: PYTHON_VERSION
+        value: 3.11.7
+  
