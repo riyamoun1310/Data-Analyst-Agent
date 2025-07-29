@@ -1,6 +1,7 @@
 from fastapi import FastAPI, File, UploadFile, Request, HTTPException
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 import uvicorn
 import io
 import json
@@ -545,9 +546,7 @@ async def analyze(request: Request, file: UploadFile = File(None)):
             detail="Internal server error occurred during analysis"
         )
 
-# Add specific endpoints that the test scripts expect
-from pydantic import BaseModel
-
+# Pydantic models for API requests
 class WikipediaRequest(BaseModel):
     url: str
     analysis_type: str
