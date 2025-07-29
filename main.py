@@ -432,8 +432,18 @@ async def process_court_judgments_analysis() -> Dict[str, Any]:
 
 @app.get("/")
 async def root():
-    """Health check endpoint"""
-    return {"message": "Data Analyst Agent API is running", "status": "healthy"}
+    """Root endpoint with available endpoints info"""
+    return {
+        "message": "Data Analyst Agent API is running", 
+        "status": "healthy",
+        "version": "1.1.0",
+        "endpoints": [
+            "GET /health - Health check",
+            "POST /analyze-wikipedia - Wikipedia analysis", 
+            "POST /analyze-court-data - Court data analysis",
+            "GET /docs - API documentation"
+        ]
+    }
 
 @app.get("/health")
 async def health_check():
