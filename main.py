@@ -28,6 +28,9 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Force cache clear timestamp: 2025-07-30
+CACHE_CLEAR_VERSION = "2025-07-30-v2"
+
 # Configuration
 class Config:
     REQUEST_TIMEOUT = 30
@@ -461,7 +464,8 @@ async def root():
     return {
         "message": "Data Analyst Agent API is running", 
         "status": "healthy",
-        "version": "1.2.0",
+        "version": "2.0.0",
+        "cache_clear": CACHE_CLEAR_VERSION,
         "endpoints": [
             "GET /health - Health check",
             "POST /analyze-wikipedia - Wikipedia analysis", 
