@@ -1,0 +1,33 @@
+🎓 IIT MADRAS DATA ANALYST AGENT - EVALUATION INSTRUCTIONS
+
+📋 REQUIREMENTS:
+- Python 3.8+ 
+- Internet connection (for Wikipedia/Court data)
+
+🚀 QUICK START:
+1. Open terminal in project folder
+2. Install dependencies: pip install -r requirements.txt
+3. Start server: python main.py
+4. Wait for: "Uvicorn running on http://0.0.0.0:8000"
+
+🌐 TESTING:
+- API Documentation: http://localhost:8000/docs
+- Health Check: http://localhost:8000/health
+- Main API: http://localhost:8000
+
+📊 FEATURES TO TEST:
+1. Wikipedia Analysis: POST /analyze with "Analyze wikipedia.org/wiki/list_of_highest-grossing_films"
+2. CSV Upload: POST /analyze with file upload
+3. Court Data: POST /analyze-court-data with {"analysis_type": "case_count_by_state"}
+
+✨ EXPECTED RESULTS:
+- Professional Swagger UI documentation
+- Real-time data analysis with visualizations
+- Statistical analysis and correlation plots
+- Comprehensive error handling
+
+🎯 EVALUATION POINTS:
+- Advanced FastAPI implementation
+- Multiple data source integration
+- Professional code quality
+- Production-ready features
