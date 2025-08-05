@@ -458,6 +458,96 @@ async def process_court_judgments_analysis() -> Dict[str, Any]:
             "note": "External data source temporarily unavailable"
         }
 
+async def process_csv_analysis(task: str, file: UploadFile) -> Dict[str, Any]:
+    """
+    Process CSV file analysis with comprehensive statistics and visualization
+    """
+    try:
+        logger.info(f"Processing CSV file: {file.filename}")
+        
+        # Read CSV content
+        content = await file.read()
+        csv_string = content.decode('utf-8')
+        
+        # Parse CSV
+        df = pd.read_csv(io.StringIO(csv_string))
+        
+        if df.empty:
+            raise ValueError("CSV file is empty")
+        
+        logger.info(f"CSV loaded: {len(df)} rows, {len(df.columns)} columns")
+        
+        # Basic statistics
+        basic_stats = {
+            "rows": len(df),
+            "columns": len(df.columns),
+            "column_names": df.columns.tolist(),
+            "data_types": df.dtypes.astype(str).to_dict(),
+            "missing_values": df.isnull().sum().to_dict()
+        }
+        
+        # Numerical analysis
+        numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
+        numerical_stats = {}
+        
+        if numeric_cols:
+            numerical_stats = {
+                "descriptive_stats": df[numeric_cols].describe().to_dict(),
+                "correlations": df[numeric_cols].corr().to_dict() if len(numeric_cols) > 1 else {}
+            }
+        
+        # Generate visualization for numeric data
+        plot_data = ""
+        if len(numeric_cols) >= 2:
+            try:
+                plt.figure(figsize=(10, 6))
+                
+                # Create correlation heatmap
+                corr_matrix = df[numeric_cols].corr()
+                plt.imshow(corr_matrix, cmap='coolwarm', aspect='auto')
+                plt.colorbar()
+                plt.xticks(range(len(numeric_cols)), numeric_cols, rotation=45)
+                plt.yticks(range(len(numeric_cols)), numeric_cols)
+                plt.title('Correlation Matrix')
+                
+                # Save plot
+                buffer = io.BytesIO()
+                plt.savefig(buffer, format='png', bbox_inches='tight', dpi=100)
+                buffer.seek(0)
+                
+                # Check size and encode
+                img_data = buffer.getvalue()
+                if len(img_data) <= config.MAX_IMAGE_SIZE:
+                    plot_data = f"data:image/png;base64,{base64.b64encode(img_data).decode()}"
+                
+                plt.close()
+                buffer.close()
+                
+            except Exception as e:
+                logger.warning(f"Plot generation failed: {e}")
+        
+        # Sample data preview
+        sample_data = df.head(5).to_dict('records') if len(df) > 0 else []
+        
+        return {
+            "success": True,
+            "filename": file.filename,
+            "basic_statistics": basic_stats,
+            "numerical_analysis": numerical_stats,
+            "sample_data": sample_data,
+            "correlation_plot": plot_data,
+            "message": f"CSV analysis completed for {file.filename}",
+            "analysis_summary": {
+                "total_numeric_columns": len(numeric_cols),
+                "total_missing_values": df.isnull().sum().sum(),
+                "data_quality_score": round((1 - df.isnull().sum().sum() / (len(df) * len(df.columns))) * 100, 2)
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"CSV analysis failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"CSV analysis failed: {str(e)}")
+
 @app.get("/")
 async def root():
     """Root endpoint with available endpoints info"""
@@ -549,6 +639,11 @@ async def analyze(request: Request, file: UploadFile = File(None)):
             
         elif 'indian high court judgement dataset' in task_lower or 'high court' in task_lower:
             result = await process_court_judgments_analysis()
+            return JSONResponse(content=result)
+        
+        elif file and file.filename and file.filename.endswith('.csv'):
+            # CSV file analysis
+            result = await process_csv_analysis(task, file)
             return JSONResponse(content=result)
         
         else:
@@ -677,6 +772,6 @@ if __name__ == "__main__":
         "main:app",
         host=host,
         port=port,
-        reload=False,  # Set to True for development
+        reload=False,
         log_level="info"
     )

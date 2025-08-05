@@ -3,19 +3,27 @@
 ## 🚀 Quick Start
 
 ```bash
-# Clone the repository
-git clone <your-repo-url>
-cd Data-Analyst-Agent
+# Method 1: Using the launcher script (Recommended)
+python run_server.py
 
-# Install dependencies
-pip install -r requirements.txt
+# Method 2: Using batch file (Windows)
+start_server.bat
 
-# Copy environment configuration
-cp .env.example .env
-
-# Run the application
+# Method 3: Direct execution
 python main.py
+
+# Method 4: Using uvicorn directly
+uvicorn main:app --host 0.0.0.0 --port 8000
 ```
+
+## 🌐 Access Your API
+
+Once the server is running, you can access:
+
+- **Main API**: http://localhost:8000
+- **Health Check**: http://localhost:8000/health  
+- **API Documentation**: http://localhost:8000/docs
+- **Alternative Docs**: http://localhost:8000/redoc
 
 ## 📋 API Documentation
 
