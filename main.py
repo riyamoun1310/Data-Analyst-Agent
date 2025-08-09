@@ -418,6 +418,33 @@ async def process_wikipedia_films_analysis(task: str) -> Dict[str, Any]:
         logger.error(f"Wikipedia films analysis failed: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
 
+def find_best_column_match(df: pd.DataFrame, question_lower: str) -> str:
+    """
+    Find the best matching column name from the question text
+    Handles multi-word columns like 'Worldwide gross'
+    """
+    # Direct exact matches (case insensitive)
+    for col in df.columns:
+        if col.lower() in question_lower:
+            return col
+    
+    # Word-by-word matching for multi-word columns
+    for col in df.columns:
+        col_words = col.lower().split()
+        if len(col_words) > 1:  # Multi-word column
+            # Check if all words of the column name appear in the question
+            if all(word in question_lower for word in col_words):
+                return col
+    
+    # Partial matching - if any significant word matches
+    for col in df.columns:
+        col_words = col.lower().split()
+        for word in col_words:
+            if len(word) > 3 and word in question_lower:  # Ignore short words like 'of', 'the'
+                return col
+    
+    return None
+
 async def flexible_data_analysis(df: pd.DataFrame, questions: list[str]) -> Dict[str, Any]:
     """
     Flexible data analysis that can answer any questions about the dataset
@@ -472,10 +499,15 @@ async def flexible_data_analysis(df: pd.DataFrame, questions: list[str]) -> Dict
                 
                 # Correlation questions
                 elif 'correlation' in question_lower:
-                    # Look for two column names in the question
+                    # Look for two column names in the question using improved matching
                     potential_cols = []
                     for col in df.columns:
-                        if col.lower() in question_lower:
+                        # Use the improved column matching logic
+                        col_words = col.lower().split()
+                        if len(col_words) > 1:  # Multi-word column
+                            if all(word in question_lower for word in col_words):
+                                potential_cols.append(col)
+                        elif col.lower() in question_lower:
                             potential_cols.append(col)
                     
                     if len(potential_cols) >= 2:
@@ -529,27 +561,27 @@ async def flexible_data_analysis(df: pd.DataFrame, questions: list[str]) -> Dict
                 
                 # Statistical questions
                 elif any(keyword in question_lower for keyword in ['average', 'mean', 'median', 'max', 'min', 'range', 'std', 'standard deviation', 'variance', 'sum', 'total']):
-                    for col in df.columns:
-                        if col.lower() in question_lower and pd.api.types.is_numeric_dtype(df[col]):
-                            if 'average' in question_lower or 'mean' in question_lower:
-                                results[question_key] = float(df[col].mean())
-                            elif 'median' in question_lower:
-                                results[question_key] = float(df[col].median())
-                            elif 'max' in question_lower or 'maximum' in question_lower:
-                                results[question_key] = float(df[col].max())
-                            elif 'min' in question_lower or 'minimum' in question_lower:
-                                results[question_key] = float(df[col].min())
-                            elif 'range' in question_lower:
-                                min_val = float(df[col].min())
-                                max_val = float(df[col].max())
-                                results[question_key] = f"Range: {min_val} to {max_val} (span: {max_val - min_val})"
-                            elif 'std' in question_lower or 'standard deviation' in question_lower:
-                                results[question_key] = float(df[col].std())
-                            elif 'variance' in question_lower:
-                                results[question_key] = float(df[col].var())
-                            elif 'sum' in question_lower or 'total' in question_lower:
-                                results[question_key] = float(df[col].sum())
-                            break
+                    # Use the improved column matching function
+                    best_col = find_best_column_match(df, question_lower)
+                    if best_col and pd.api.types.is_numeric_dtype(df[best_col]):
+                        if 'average' in question_lower or 'mean' in question_lower:
+                            results[question_key] = float(df[best_col].mean())
+                        elif 'median' in question_lower:
+                            results[question_key] = float(df[best_col].median())
+                        elif 'max' in question_lower or 'maximum' in question_lower:
+                            results[question_key] = float(df[best_col].max())
+                        elif 'min' in question_lower or 'minimum' in question_lower:
+                            results[question_key] = float(df[best_col].min())
+                        elif 'range' in question_lower:
+                            min_val = float(df[best_col].min())
+                            max_val = float(df[best_col].max())
+                            results[question_key] = f"Range: {min_val} to {max_val} (span: {max_val - min_val})"
+                        elif 'std' in question_lower or 'standard deviation' in question_lower:
+                            results[question_key] = float(df[best_col].std())
+                        elif 'variance' in question_lower:
+                            results[question_key] = float(df[best_col].var())
+                        elif 'sum' in question_lower or 'total' in question_lower:
+                            results[question_key] = float(df[best_col].sum())
                 
                 # Default: provide basic info about the question
                 else:
