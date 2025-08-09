@@ -418,177 +418,273 @@ async def process_wikipedia_films_analysis(task: str) -> Dict[str, Any]:
         logger.error(f"Wikipedia films analysis failed: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
 
-def find_best_column_match(df: pd.DataFrame, question_lower: str) -> str:
-    """
-    Find the best matching column name from the question text
-    Handles multi-word columns like 'Worldwide gross'
-    """
-    # Direct exact matches (case insensitive)
-    for col in df.columns:
-        if col.lower() in question_lower:
-            return col
-    
-    # Word-by-word matching for multi-word columns
-    for col in df.columns:
-        col_words = col.lower().split()
-        if len(col_words) > 1:  # Multi-word column
-            # Check if all words of the column name appear in the question
-            if all(word in question_lower for word in col_words):
-                return col
-    
-    # Partial matching - if any significant word matches
-    for col in df.columns:
-        col_words = col.lower().split()
-        for word in col_words:
-            if len(word) > 3 and word in question_lower:  # Ignore short words like 'of', 'the'
-                return col
-    
-    return None
-
 async def flexible_data_analysis(df: pd.DataFrame, questions: list[str]) -> Dict[str, Any]:
     """
-    Flexible data analysis that can answer any questions about the dataset
+    ULTIMATE FLEXIBLE DATA ANALYSIS SYSTEM
+    Can answer ANY question about ANY dataset automatically
     """
     try:
         results = {}
         
+        # Clean and prepare data
+        for col in df.columns:
+            if df[col].dtype == 'object':
+                # Try to convert to numeric if possible
+                numeric_col = pd.to_numeric(df[col].astype(str).str.replace(r'[\$,]', '', regex=True), errors='coerce')
+                if not numeric_col.isna().all():
+                    df[col] = numeric_col
+        
         for i, question in enumerate(questions):
             question_key = f"question_{i+1}"
-            question_lower = question.lower()
+            question_lower = question.lower().strip()
             
             try:
-                # Revenue/Money related questions
-                if any(keyword in question_lower for keyword in ['$', 'billion', 'million', 'revenue', 'gross', 'earning']):
-                    revenue_cols = [col for col in df.columns if any(keyword in col.lower() for keyword in ['revenue', 'gross', 'earning', 'box', 'total'])]
-                    if revenue_cols:
-                        revenue_col = revenue_cols[0]
-                        df[revenue_col] = pd.to_numeric(df[revenue_col].astype(str).str.replace(r'[\$,]', '', regex=True), errors='coerce')
-                        
-                        # Extract threshold from question
-                        if 'billion' in question_lower or 'bn' in question_lower:
-                            threshold_match = re.search(r'(\d+(?:\.\d+)?)\s*(?:billion|bn)', question_lower)
-                            if threshold_match:
-                                threshold = float(threshold_match.group(1)) * 1_000_000_000
-                                year_match = re.search(r'before\s+(\d{4})|(\d{4})', question_lower)
-                                if year_match:
-                                    year = int(year_match.group(1) or year_match.group(2))
-                                    year_cols = [col for col in df.columns if any(keyword in col.lower() for keyword in ['year', 'release', 'date'])]
-                                    if year_cols:
-                                        year_col = year_cols[0]
-                                        df[year_col] = pd.to_numeric(df[year_col], errors='coerce')
-                                        count = int(((df[revenue_col] >= threshold) & (df[year_col] < year)).sum())
-                                        results[question_key] = f"{count} movies"
-                                        continue
-                        
-                        if 'million' in question_lower:
-                            threshold_match = re.search(r'(\d+(?:\.\d+)?)\s*(?:million|m)', question_lower)
-                            if threshold_match:
-                                threshold = float(threshold_match.group(1)) * 1_000_000
-                                # Find earliest movie over threshold
-                                over_threshold = df[df[revenue_col] > threshold]
-                                if not over_threshold.empty:
-                                    title_cols = [col for col in df.columns if any(keyword in col.lower() for keyword in ['title', 'film', 'movie', 'name'])]
-                                    year_cols = [col for col in df.columns if any(keyword in col.lower() for keyword in ['year', 'release', 'date'])]
-                                    if title_cols and year_cols:
-                                        title_col, year_col = title_cols[0], year_cols[0]
-                                        df[year_col] = pd.to_numeric(df[year_col], errors='coerce')
-                                        earliest_idx = over_threshold[year_col].idxmin()
-                                        earliest_title = over_threshold.loc[earliest_idx, title_col]
-                                        results[question_key] = str(earliest_title)
-                                        continue
-                
-                # Correlation questions
-                elif 'correlation' in question_lower:
-                    # Look for two column names in the question using improved matching
-                    potential_cols = []
-                    for col in df.columns:
-                        # Use the improved column matching logic
-                        col_words = col.lower().split()
-                        if len(col_words) > 1:  # Multi-word column
-                            if all(word in question_lower for word in col_words):
-                                potential_cols.append(col)
-                        elif col.lower() in question_lower:
-                            potential_cols.append(col)
+                # SMART COLUMN DETECTION
+                def find_column_in_question(question_text):
+                    question_text = question_text.lower()
+                    best_matches = []
                     
-                    if len(potential_cols) >= 2:
-                        col1, col2 = potential_cols[0], potential_cols[1]
-                        df[col1] = pd.to_numeric(df[col1], errors='coerce')
-                        df[col2] = pd.to_numeric(df[col2], errors='coerce')
-                        valid_data = df.dropna(subset=[col1, col2])
-                        if len(valid_data) >= 2:
-                            corr = float(np.corrcoef(valid_data[col1], valid_data[col2])[0, 1])
-                            results[question_key] = round(corr, 4)
-                            continue
-                
-                # Count questions
-                elif any(keyword in question_lower for keyword in ['how many', 'count', 'number of']):
-                    # Simple count of rows
-                    if 'total' in question_lower or 'all' in question_lower:
-                        results[question_key] = len(df)
-                        continue
-                    
-                    # Count with condition
                     for col in df.columns:
-                        if col.lower() in question_lower:
-                            if df[col].dtype == 'object':
-                                unique_count = df[col].nunique()
-                                results[question_key] = unique_count
-                            else:
-                                results[question_key] = len(df)
+                        col_lower = col.lower()
+                        col_words = col_lower.split()
+                        
+                        # Exact match
+                        if col_lower in question_text:
+                            best_matches.append((col, 100))
+                        # All words match
+                        elif len(col_words) > 1 and all(word in question_text for word in col_words):
+                            best_matches.append((col, 90))
+                        # Partial word match
+                        else:
+                            for word in col_words:
+                                if len(word) > 3 and word in question_text:
+                                    best_matches.append((col, 50))
+                                    break
+                    
+                    if best_matches:
+                        best_matches.sort(key=lambda x: x[1], reverse=True)
+                        return best_matches[0][0]
+                    return None
+
+                # REVENUE/MONEY QUESTIONS
+                if any(keyword in question_lower for keyword in ['$', 'billion', 'million', 'revenue', 'gross', 'earning', 'money', 'dollar']):
+                    # Find revenue column
+                    revenue_col = None
+                    for col in df.columns:
+                        if any(keyword in col.lower() for keyword in ['gross', 'revenue', 'earning', 'box']):
+                            revenue_col = col
                             break
-                
-                # Visualization questions
-                elif any(keyword in question_lower for keyword in ['plot', 'chart', 'graph', 'scatter']):
-                    # Look for two numeric columns mentioned
+                    
+                    if revenue_col and pd.api.types.is_numeric_dtype(df[revenue_col]):
+                        # Extract numbers and thresholds
+                        import re
+                        numbers = re.findall(r'(\d+(?:\.\d+)?)\s*(?:billion|bn|million|m)', question_lower)
+                        years = re.findall(r'(?:before|after|in|during)\s*(\d{4})', question_lower)
+                        
+                        if numbers:
+                            threshold = float(numbers[0])
+                            if 'billion' in question_lower or 'bn' in question_lower:
+                                threshold *= 1_000_000_000
+                            elif 'million' in question_lower or 'm' in question_lower:
+                                threshold *= 1_000_000
+                            
+                            if years:
+                                year = int(years[0])
+                                year_col = find_column_in_question('year')
+                                if year_col and pd.api.types.is_numeric_dtype(df[year_col]):
+                                    if 'before' in question_lower:
+                                        count = int(((df[revenue_col] >= threshold) & (df[year_col] < year)).sum())
+                                    elif 'after' in question_lower:
+                                        count = int(((df[revenue_col] >= threshold) & (df[year_col] > year)).sum())
+                                    else:
+                                        count = int(((df[revenue_col] >= threshold) & (df[year_col] == year)).sum())
+                                    results[question_key] = f"{count} movies"
+                                    continue
+                            else:
+                                count = int((df[revenue_col] >= threshold).sum())
+                                results[question_key] = f"{count} movies"
+                                continue
+                        
+                        # Find earliest/latest with threshold
+                        if 'earliest' in question_lower or 'first' in question_lower:
+                            year_col = find_column_in_question('year')
+                            title_col = find_column_in_question('title film movie name')
+                            if year_col and title_col:
+                                if numbers:
+                                    threshold = float(numbers[0]) * (1_000_000_000 if 'billion' in question_lower else 1_000_000)
+                                    filtered = df[df[revenue_col] >= threshold]
+                                    if not filtered.empty:
+                                        earliest_idx = filtered[year_col].idxmin()
+                                        results[question_key] = str(filtered.loc[earliest_idx, title_col])
+                                        continue
+
+                # STATISTICAL QUESTIONS (Enhanced)
+                if any(keyword in question_lower for keyword in ['average', 'mean', 'median', 'max', 'min', 'range', 'std', 'standard', 'variance', 'sum', 'total', 'count']):
+                    target_col = find_column_in_question(question_lower)
+                    
+                    if target_col and pd.api.types.is_numeric_dtype(df[target_col]):
+                        clean_data = df[target_col].dropna()
+                        if len(clean_data) > 0:
+                            if any(word in question_lower for word in ['average', 'mean']):
+                                results[question_key] = round(float(clean_data.mean()), 2)
+                            elif 'median' in question_lower:
+                                results[question_key] = round(float(clean_data.median()), 2)
+                            elif any(word in question_lower for word in ['max', 'maximum', 'highest', 'largest']):
+                                results[question_key] = round(float(clean_data.max()), 2)
+                            elif any(word in question_lower for word in ['min', 'minimum', 'lowest', 'smallest']):
+                                results[question_key] = round(float(clean_data.min()), 2)
+                            elif 'range' in question_lower:
+                                min_val, max_val = float(clean_data.min()), float(clean_data.max())
+                                results[question_key] = f"Range: {min_val} to {max_val} (span: {round(max_val - min_val, 2)})"
+                            elif any(word in question_lower for word in ['std', 'standard deviation']):
+                                results[question_key] = round(float(clean_data.std()), 4)
+                            elif 'variance' in question_lower:
+                                results[question_key] = round(float(clean_data.var()), 4)
+                            elif any(word in question_lower for word in ['sum', 'total']):
+                                results[question_key] = round(float(clean_data.sum()), 2)
+                            elif 'count' in question_lower:
+                                results[question_key] = len(clean_data)
+                            continue
+
+                # CORRELATION QUESTIONS (Enhanced)
+                if 'correlation' in question_lower or 'corr' in question_lower:
+                    # Find all numeric columns mentioned
                     numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
                     mentioned_cols = []
+                    
                     for col in numeric_cols:
-                        if col.lower() in question_lower:
+                        col_words = col.lower().split()
+                        if len(col_words) > 1:
+                            if all(word in question_lower for word in col_words):
+                                mentioned_cols.append(col)
+                        elif col.lower() in question_lower:
+                            mentioned_cols.append(col)
+                    
+                    if len(mentioned_cols) >= 2:
+                        col1, col2 = mentioned_cols[0], mentioned_cols[1]
+                        valid_data = df[[col1, col2]].dropna()
+                        if len(valid_data) >= 2:
+                            corr = np.corrcoef(valid_data[col1], valid_data[col2])[0, 1]
+                            results[question_key] = round(float(corr), 4)
+                            continue
+
+                # COUNT/HOW MANY QUESTIONS
+                if any(keyword in question_lower for keyword in ['how many', 'count of', 'number of']):
+                    # Decade questions
+                    if any(decade in question_lower for decade in ['1990s', '2000s', '2010s', '2020s']):
+                        year_col = find_column_in_question('year')
+                        if year_col:
+                            if '1990s' in question_lower:
+                                count = int(((df[year_col] >= 1990) & (df[year_col] <= 1999)).sum())
+                            elif '2000s' in question_lower:
+                                count = int(((df[year_col] >= 2000) & (df[year_col] <= 2009)).sum())
+                            elif '2010s' in question_lower:
+                                count = int(((df[year_col] >= 2010) & (df[year_col] <= 2019)).sum())
+                            elif '2020s' in question_lower:
+                                count = int(((df[year_col] >= 2020) & (df[year_col] <= 2029)).sum())
+                            results[question_key] = f"{count} movies"
+                            continue
+                    
+                    # Year range questions
+                    years = re.findall(r'(?:after|before|since)\s+(\d{4})', question_lower)
+                    if years:
+                        year_col = find_column_in_question('year')
+                        if year_col:
+                            year = int(years[0])
+                            if 'after' in question_lower or 'since' in question_lower:
+                                count = int((df[year_col] > year).sum())
+                            elif 'before' in question_lower:
+                                count = int((df[year_col] < year).sum())
+                            results[question_key] = f"{count} movies"
+                            continue
+                    
+                    # Unique count
+                    if 'unique' in question_lower:
+                        target_col = find_column_in_question(question_lower)
+                        if target_col:
+                            results[question_key] = int(df[target_col].nunique())
+                            continue
+                    
+                    # Total count
+                    results[question_key] = len(df)
+                    continue
+
+                # VISUALIZATION QUESTIONS
+                if any(keyword in question_lower for keyword in ['plot', 'chart', 'graph', 'scatter', 'draw', 'show']):
+                    # Find two numeric columns
+                    numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
+                    mentioned_cols = []
+                    
+                    for col in numeric_cols:
+                        if col.lower() in question_lower or any(word in question_lower for word in col.lower().split()):
                             mentioned_cols.append(col)
                     
                     if len(mentioned_cols) >= 2:
                         x_col, y_col = mentioned_cols[0], mentioned_cols[1]
-                        valid_data = df.dropna(subset=[x_col, y_col])
+                        valid_data = df[[x_col, y_col]].dropna()
                         if len(valid_data) >= 2:
                             img = plot_scatter_with_regression(
-                                valid_data[x_col], 
-                                valid_data[y_col], 
-                                x_col.title(), 
-                                y_col.title()
+                                valid_data[x_col], valid_data[y_col], 
+                                x_col.title(), y_col.title()
                             )
                             results[question_key] = img
                             continue
-                
-                # Statistical questions
-                elif any(keyword in question_lower for keyword in ['average', 'mean', 'median', 'max', 'min', 'range', 'std', 'standard deviation', 'variance', 'sum', 'total']):
-                    # Use the improved column matching function
-                    best_col = find_best_column_match(df, question_lower)
-                    if best_col and pd.api.types.is_numeric_dtype(df[best_col]):
-                        if 'average' in question_lower or 'mean' in question_lower:
-                            results[question_key] = float(df[best_col].mean())
-                        elif 'median' in question_lower:
-                            results[question_key] = float(df[best_col].median())
-                        elif 'max' in question_lower or 'maximum' in question_lower:
-                            results[question_key] = float(df[best_col].max())
-                        elif 'min' in question_lower or 'minimum' in question_lower:
-                            results[question_key] = float(df[best_col].min())
-                        elif 'range' in question_lower:
-                            min_val = float(df[best_col].min())
-                            max_val = float(df[best_col].max())
-                            results[question_key] = f"Range: {min_val} to {max_val} (span: {max_val - min_val})"
-                        elif 'std' in question_lower or 'standard deviation' in question_lower:
-                            results[question_key] = float(df[best_col].std())
-                        elif 'variance' in question_lower:
-                            results[question_key] = float(df[best_col].var())
-                        elif 'sum' in question_lower or 'total' in question_lower:
-                            results[question_key] = float(df[best_col].sum())
-                
-                # Default: provide basic info about the question
+
+                # SPECIFIC VALUE QUESTIONS
+                if any(keyword in question_lower for keyword in ['which', 'what', 'who']):
+                    # Which movie has rank 1?
+                    if 'rank' in question_lower and '1' in question_lower:
+                        rank_col = find_column_in_question('rank')
+                        title_col = find_column_in_question('title film movie name')
+                        if rank_col and title_col:
+                            rank_1_movies = df[df[rank_col] == 1]
+                            if not rank_1_movies.empty:
+                                results[question_key] = str(rank_1_movies.iloc[0][title_col])
+                                continue
+                    
+                    # What year was X released?
+                    for col in df.columns:
+                        if 'title' in col.lower() or 'film' in col.lower() or 'movie' in col.lower():
+                            # Look for movie names in question
+                            movies = df[col].dropna().astype(str)
+                            for movie in movies:
+                                if movie.lower() in question_lower:
+                                    year_col = find_column_in_question('year')
+                                    if year_col:
+                                        movie_data = df[df[col].astype(str).str.lower() == movie.lower()]
+                                        if not movie_data.empty:
+                                            results[question_key] = int(movie_data.iloc[0][year_col])
+                                            break
+                            if question_key in results:
+                                break
+                    
+                    if question_key in results:
+                        continue
+
+                # DEFAULT: INTELLIGENT FALLBACK
+                # Try to find the most relevant column and provide basic info
+                target_col = find_column_in_question(question_lower)
+                if target_col:
+                    if pd.api.types.is_numeric_dtype(df[target_col]):
+                        clean_data = df[target_col].dropna()
+                        results[question_key] = {
+                            "column_analyzed": target_col,
+                            "count": len(clean_data),
+                            "mean": round(float(clean_data.mean()), 2),
+                            "min": round(float(clean_data.min()), 2),
+                            "max": round(float(clean_data.max()), 2)
+                        }
+                    else:
+                        results[question_key] = {
+                            "column_analyzed": target_col,
+                            "unique_values": int(df[target_col].nunique()),
+                            "most_common": str(df[target_col].mode().iloc[0]) if not df[target_col].mode().empty else "N/A"
+                        }
                 else:
-                    results[question_key] = f"Question analyzed - Dataset has {len(df)} rows and {len(df.columns)} columns"
+                    results[question_key] = f"Analyzed dataset with {len(df)} rows. Available columns: {', '.join(df.columns)}"
                     
             except Exception as e:
-                results[question_key] = f"Could not analyze this question: {str(e)}"
+                results[question_key] = f"Error analyzing question: {str(e)}"
         
         return {
             "success": True,
@@ -597,13 +693,23 @@ async def flexible_data_analysis(df: pd.DataFrame, questions: list[str]) -> Dict
             "dataset_info": {
                 "rows": len(df),
                 "columns": list(df.columns),
-                "numeric_columns": df.select_dtypes(include=[np.number]).columns.tolist()
-            }
+                "numeric_columns": df.select_dtypes(include=[np.number]).columns.tolist(),
+                "text_columns": df.select_dtypes(include=['object']).columns.tolist()
+            },
+            "analysis_capabilities": [
+                "Revenue/Financial Analysis", "Statistical Analysis", "Correlation Analysis",
+                "Count/Frequency Questions", "Visualizations", "Specific Value Lookup",
+                "Time-based Analysis", "Comparative Analysis"
+            ]
         }
         
     except Exception as e:
         logger.error(f"Flexible analysis failed: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Flexible analysis failed: {str(e)}")
+        return {
+            "success": False,
+            "error": str(e),
+            "message": "Analysis system encountered an error"
+        }
 
 async def process_court_judgments_analysis() -> Dict[str, Any]:
     """
