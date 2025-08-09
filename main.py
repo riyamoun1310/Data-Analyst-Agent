@@ -528,17 +528,27 @@ async def flexible_data_analysis(df: pd.DataFrame, questions: list[str]) -> Dict
                             continue
                 
                 # Statistical questions
-                elif any(keyword in question_lower for keyword in ['average', 'mean', 'median', 'max', 'min']):
+                elif any(keyword in question_lower for keyword in ['average', 'mean', 'median', 'max', 'min', 'range', 'std', 'standard deviation', 'variance', 'sum', 'total']):
                     for col in df.columns:
                         if col.lower() in question_lower and pd.api.types.is_numeric_dtype(df[col]):
                             if 'average' in question_lower or 'mean' in question_lower:
                                 results[question_key] = float(df[col].mean())
                             elif 'median' in question_lower:
                                 results[question_key] = float(df[col].median())
-                            elif 'max' in question_lower:
+                            elif 'max' in question_lower or 'maximum' in question_lower:
                                 results[question_key] = float(df[col].max())
-                            elif 'min' in question_lower:
+                            elif 'min' in question_lower or 'minimum' in question_lower:
                                 results[question_key] = float(df[col].min())
+                            elif 'range' in question_lower:
+                                min_val = float(df[col].min())
+                                max_val = float(df[col].max())
+                                results[question_key] = f"Range: {min_val} to {max_val} (span: {max_val - min_val})"
+                            elif 'std' in question_lower or 'standard deviation' in question_lower:
+                                results[question_key] = float(df[col].std())
+                            elif 'variance' in question_lower:
+                                results[question_key] = float(df[col].var())
+                            elif 'sum' in question_lower or 'total' in question_lower:
+                                results[question_key] = float(df[col].sum())
                             break
                 
                 # Default: provide basic info about the question
