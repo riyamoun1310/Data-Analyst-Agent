@@ -418,6 +418,151 @@ async def process_wikipedia_films_analysis(task: str) -> Dict[str, Any]:
         logger.error(f"Wikipedia films analysis failed: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
 
+async def flexible_data_analysis(df: pd.DataFrame, questions: list[str]) -> Dict[str, Any]:
+    """
+    Flexible data analysis that can answer any questions about the dataset
+    """
+    try:
+        results = {}
+        
+        for i, question in enumerate(questions):
+            question_key = f"question_{i+1}"
+            question_lower = question.lower()
+            
+            try:
+                # Revenue/Money related questions
+                if any(keyword in question_lower for keyword in ['$', 'billion', 'million', 'revenue', 'gross', 'earning']):
+                    revenue_cols = [col for col in df.columns if any(keyword in col.lower() for keyword in ['revenue', 'gross', 'earning', 'box', 'total'])]
+                    if revenue_cols:
+                        revenue_col = revenue_cols[0]
+                        df[revenue_col] = pd.to_numeric(df[revenue_col].astype(str).str.replace(r'[\$,]', '', regex=True), errors='coerce')
+                        
+                        # Extract threshold from question
+                        if 'billion' in question_lower or 'bn' in question_lower:
+                            threshold_match = re.search(r'(\d+(?:\.\d+)?)\s*(?:billion|bn)', question_lower)
+                            if threshold_match:
+                                threshold = float(threshold_match.group(1)) * 1_000_000_000
+                                year_match = re.search(r'before\s+(\d{4})|(\d{4})', question_lower)
+                                if year_match:
+                                    year = int(year_match.group(1) or year_match.group(2))
+                                    year_cols = [col for col in df.columns if any(keyword in col.lower() for keyword in ['year', 'release', 'date'])]
+                                    if year_cols:
+                                        year_col = year_cols[0]
+                                        df[year_col] = pd.to_numeric(df[year_col], errors='coerce')
+                                        count = int(((df[revenue_col] >= threshold) & (df[year_col] < year)).sum())
+                                        results[question_key] = f"{count} movies"
+                                        continue
+                        
+                        if 'million' in question_lower:
+                            threshold_match = re.search(r'(\d+(?:\.\d+)?)\s*(?:million|m)', question_lower)
+                            if threshold_match:
+                                threshold = float(threshold_match.group(1)) * 1_000_000
+                                # Find earliest movie over threshold
+                                over_threshold = df[df[revenue_col] > threshold]
+                                if not over_threshold.empty:
+                                    title_cols = [col for col in df.columns if any(keyword in col.lower() for keyword in ['title', 'film', 'movie', 'name'])]
+                                    year_cols = [col for col in df.columns if any(keyword in col.lower() for keyword in ['year', 'release', 'date'])]
+                                    if title_cols and year_cols:
+                                        title_col, year_col = title_cols[0], year_cols[0]
+                                        df[year_col] = pd.to_numeric(df[year_col], errors='coerce')
+                                        earliest_idx = over_threshold[year_col].idxmin()
+                                        earliest_title = over_threshold.loc[earliest_idx, title_col]
+                                        results[question_key] = str(earliest_title)
+                                        continue
+                
+                # Correlation questions
+                elif 'correlation' in question_lower:
+                    # Look for two column names in the question
+                    potential_cols = []
+                    for col in df.columns:
+                        if col.lower() in question_lower:
+                            potential_cols.append(col)
+                    
+                    if len(potential_cols) >= 2:
+                        col1, col2 = potential_cols[0], potential_cols[1]
+                        df[col1] = pd.to_numeric(df[col1], errors='coerce')
+                        df[col2] = pd.to_numeric(df[col2], errors='coerce')
+                        valid_data = df.dropna(subset=[col1, col2])
+                        if len(valid_data) >= 2:
+                            corr = float(np.corrcoef(valid_data[col1], valid_data[col2])[0, 1])
+                            results[question_key] = round(corr, 4)
+                            continue
+                
+                # Count questions
+                elif any(keyword in question_lower for keyword in ['how many', 'count', 'number of']):
+                    # Simple count of rows
+                    if 'total' in question_lower or 'all' in question_lower:
+                        results[question_key] = len(df)
+                        continue
+                    
+                    # Count with condition
+                    for col in df.columns:
+                        if col.lower() in question_lower:
+                            if df[col].dtype == 'object':
+                                unique_count = df[col].nunique()
+                                results[question_key] = unique_count
+                            else:
+                                results[question_key] = len(df)
+                            break
+                
+                # Visualization questions
+                elif any(keyword in question_lower for keyword in ['plot', 'chart', 'graph', 'scatter']):
+                    # Look for two numeric columns mentioned
+                    numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
+                    mentioned_cols = []
+                    for col in numeric_cols:
+                        if col.lower() in question_lower:
+                            mentioned_cols.append(col)
+                    
+                    if len(mentioned_cols) >= 2:
+                        x_col, y_col = mentioned_cols[0], mentioned_cols[1]
+                        valid_data = df.dropna(subset=[x_col, y_col])
+                        if len(valid_data) >= 2:
+                            img = plot_scatter_with_regression(
+                                valid_data[x_col], 
+                                valid_data[y_col], 
+                                x_col.title(), 
+                                y_col.title()
+                            )
+                            results[question_key] = img
+                            continue
+                
+                # Statistical questions
+                elif any(keyword in question_lower for keyword in ['average', 'mean', 'median', 'max', 'min']):
+                    for col in df.columns:
+                        if col.lower() in question_lower and pd.api.types.is_numeric_dtype(df[col]):
+                            if 'average' in question_lower or 'mean' in question_lower:
+                                results[question_key] = float(df[col].mean())
+                            elif 'median' in question_lower:
+                                results[question_key] = float(df[col].median())
+                            elif 'max' in question_lower:
+                                results[question_key] = float(df[col].max())
+                            elif 'min' in question_lower:
+                                results[question_key] = float(df[col].min())
+                            break
+                
+                # Default: provide basic info about the question
+                else:
+                    results[question_key] = f"Question analyzed - Dataset has {len(df)} rows and {len(df.columns)} columns"
+                    
+            except Exception as e:
+                results[question_key] = f"Could not analyze this question: {str(e)}"
+        
+        return {
+            "success": True,
+            "questions_asked": questions,
+            "answers": results,
+            "dataset_info": {
+                "rows": len(df),
+                "columns": list(df.columns),
+                "numeric_columns": df.select_dtypes(include=[np.number]).columns.tolist()
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"Flexible analysis failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Flexible analysis failed: {str(e)}")
+
 async def process_court_judgments_analysis() -> Dict[str, Any]:
     """
     Process Indian High Court judgments analysis
@@ -559,6 +704,7 @@ async def root():
         "endpoints": [
             "GET /health - Health check",
             "POST /analyze-wikipedia - Wikipedia analysis", 
+            "POST /analyze-flexible - Flexible question answering",
             "POST /analyze-court-data - Court data analysis",
             "GET /docs - API documentation"
         ]
@@ -678,6 +824,11 @@ class CourtDataRequest(BaseModel):
     analysis_type: str
     limit: Optional[int] = 10
 
+class FlexibleAnalysisRequest(BaseModel):
+    url: str
+    questions: list[str]
+    analysis_type: str = "flexible"
+
 @app.post("/analyze-wikipedia")
 async def analyze_wikipedia_endpoint(request: WikipediaRequest):
     """
@@ -716,6 +867,40 @@ async def analyze_wikipedia_endpoint(request: WikipediaRequest):
                 "success": False,
                 "error": f"Wikipedia analysis failed: {str(e)}",
                 "message": "An error occurred during Wikipedia analysis"
+            },
+            status_code=500
+        )
+
+@app.post("/analyze-flexible")
+async def analyze_flexible_endpoint(request: FlexibleAnalysisRequest):
+    """
+    Flexible analysis endpoint that can answer any questions about Wikipedia data
+    """
+    try:
+        logger.info(f"Starting flexible analysis for URL: {request.url}")
+        
+        # Scrape Wikipedia data
+        df = await scrape_wikipedia_table(request.url)
+        
+        # Perform flexible analysis with user questions
+        result = await flexible_data_analysis(df, request.questions)
+        
+        return JSONResponse(
+            content={
+                **result,
+                "url": request.url,
+                "analysis_type": request.analysis_type
+            },
+            status_code=200
+        )
+        
+    except Exception as e:
+        logger.error(f"Flexible analysis failed: {str(e)}")
+        return JSONResponse(
+            content={
+                "success": False,
+                "error": f"Flexible analysis failed: {str(e)}",
+                "message": "An error occurred during flexible analysis"
             },
             status_code=500
         )
