@@ -1,17 +1,6 @@
 
 # ...existing code...
 
-# Place this after app = FastAPI(...)
-
-@app.get("/api/")
-async def api_get_info():
-    return JSONResponse(
-        status_code=405,
-        content={
-            "error": "Method Not Allowed",
-            "message": "Please use POST with a CSV file upload to /api/ for analysis. See /docs for details."
-        }
-    )
 
 from fastapi import FastAPI, File, UploadFile, Request, HTTPException
 from fastapi.responses import JSONResponse
