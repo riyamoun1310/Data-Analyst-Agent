@@ -1,3 +1,44 @@
+## 🐳 Production & Docker Deployment
+
+### 1. Environment Variables
+Copy `.env.example` to `.env` and set values for your environment:
+
+```sh
+cp .env.example .env
+# Edit .env as needed
+```
+
+### 2. Build & Run with Docker
+
+```sh
+# Build the Docker image
+docker build -t data-analyst-agent .
+
+# Run the container with environment variables
+docker run -p 8000:8000 --env-file .env data-analyst-agent
+```
+
+### 3. Manual Local Run (for development)
+
+```sh
+# Activate your virtual environment and install requirements
+python -m venv .venv
+.venv\Scripts\activate  # On Windows
+pip install -r requirements.txt
+
+# Set environment variables (optional, or use .env)
+set ALLOWED_ORIGINS=http://localhost
+set LOG_LEVEL=DEBUG
+
+# Start the server
+uvicorn main:app --reload
+```
+
+### 4. CORS & Security
+- Set `ALLOWED_ORIGINS` in your `.env` for production (never use `*` in production)
+- Use strong secrets and restrict API access as needed
+
+---
 # 🎯 Data Analyst Agent API
 *Professional-grade FastAPI backend for automated data analysis and visualization*
 

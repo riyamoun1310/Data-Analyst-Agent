@@ -1,3 +1,4 @@
+
 from fastapi import FastAPI, File, UploadFile, Request, HTTPException
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -21,9 +22,11 @@ from typing import Optional, Dict, Any, Union
 import asyncio
 from contextlib import asynccontextmanager
 
-# Configure logging
+
+# Configure logging with log level from environment
+LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO").upper()
 logging.basicConfig(
-    level=logging.INFO,
+    level=getattr(logging, LOG_LEVEL, logging.INFO),
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
@@ -33,11 +36,13 @@ CACHE_CLEAR_VERSION = "2025-07-30-v2"
 
 # Configuration
 class Config:
-    REQUEST_TIMEOUT = 30
-    MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
-    MAX_IMAGE_SIZE = 100_000  # 100KB for base64 images
-    WIKIPEDIA_BASE_URL = "https://en.wikipedia.org"
-    
+    REQUEST_TIMEOUT = int(os.environ.get("REQUEST_TIMEOUT", 30))
+    MAX_FILE_SIZE = int(os.environ.get("MAX_FILE_SIZE", 10 * 1024 * 1024))  # 10MB default
+    MAX_IMAGE_SIZE = int(os.environ.get("MAX_IMAGE_SIZE", 100_000))  # 100KB default
+    WIKIPEDIA_BASE_URL = os.environ.get("WIKIPEDIA_BASE_URL", "https://en.wikipedia.org")
+    # CORS allowed origins (comma-separated)
+    ALLOWED_ORIGINS = os.environ.get("ALLOWED_ORIGINS", "*").split(",")
+
 config = Config()
 
 # Database connection pool
@@ -79,7 +84,7 @@ app = FastAPI(
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Configure this properly for production
+    allow_origins=config.ALLOWED_ORIGINS,  # Set via env ALLOWED_ORIGINS
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -93,7 +98,7 @@ async def scrape_wikipedia_table(url: str) -> pd.DataFrame:
     try:
         # Validate URL
         if not url.startswith(config.WIKIPEDIA_BASE_URL):
-            raise ValueError("Invalid Wikipedia URL")
+            raise ValueError(f"Invalid Wikipedia URL. Allowed base: {config.WIKIPEDIA_BASE_URL}")
         
         # Make request with timeout
         try:
