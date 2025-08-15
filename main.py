@@ -1,4 +1,8 @@
-# Add GET handler for /api/ to provide a helpful message
+
+# ...existing code...
+
+# Place this after app = FastAPI(...)
+
 @app.get("/api/")
 async def api_get_info():
     return JSONResponse(
