@@ -16,7 +16,7 @@ def analyze_weather(df: pd.DataFrame):
     temp_precip_corr = float(df['temp_c'].corr(df['precip_mm'])) if 'temp_c' in df and 'precip_mm' in df and df['temp_c'].std() > 0 and df['precip_mm'].std() > 0 else 0.0
     avg_precip = float(df['precip_mm'].mean()) if 'precip_mm' in df else None
     # temp_line_chart
-    temp_line_chart = ""
+    temp_line_chart = None
     try:
         plt.figure(figsize=(6,4))
         plt.plot(df['date'], df['temp_c'], color='red')
@@ -28,11 +28,12 @@ def analyze_weather(df: pd.DataFrame):
         plt.savefig(buf, format='png', dpi=100, bbox_inches='tight')
         plt.close()
         buf.seek(0)
-        temp_line_chart = base64.b64encode(buf.read()).decode()
+        img_b64 = base64.b64encode(buf.read()).decode()
+        temp_line_chart = f"data:image/png;base64,{img_b64}"
     except Exception:
-        temp_line_chart = ""
+        temp_line_chart = None
     # precip_histogram
-    precip_histogram = ""
+    precip_histogram = None
     try:
         plt.figure(figsize=(6,4))
         plt.hist(df['precip_mm'], color='orange', bins=10)
@@ -44,9 +45,10 @@ def analyze_weather(df: pd.DataFrame):
         plt.savefig(buf2, format='png', dpi=100, bbox_inches='tight')
         plt.close()
         buf2.seek(0)
-        precip_histogram = base64.b64encode(buf2.read()).decode()
+        img_b64 = base64.b64encode(buf2.read()).decode()
+        precip_histogram = f"data:image/png;base64,{img_b64}"
     except Exception:
-        precip_histogram = ""
+        precip_histogram = None
     return {
         "average_temp_c": round(avg_temp, 2) if avg_temp is not None else None,
         "max_precip_date": max_precip_date,

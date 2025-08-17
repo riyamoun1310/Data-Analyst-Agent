@@ -21,7 +21,7 @@ def analyze_sales(df: pd.DataFrame):
         total_sales_tax = float(df['sales'].sum() * 0.10)
     except Exception:
         pass
-    bar_chart = ""
+    bar_chart = None
     try:
         region_sales = df.groupby('region')['sales'].sum()
         plt.figure(figsize=(6,4))
@@ -34,10 +34,11 @@ def analyze_sales(df: pd.DataFrame):
         plt.savefig(buf, format='png', dpi=100, bbox_inches='tight')
         plt.close()
         buf.seek(0)
-        bar_chart = base64.b64encode(buf.read()).decode()
+        img_b64 = base64.b64encode(buf.read()).decode()
+        bar_chart = f"data:image/png;base64,{img_b64}"
     except Exception:
-        bar_chart = ""
-    cumulative_sales_chart = ""
+        bar_chart = None
+    cumulative_sales_chart = None
     try:
         df_sorted = df.sort_values('date')
         df_sorted['cumulative_sales'] = df_sorted['sales'].cumsum()
@@ -51,9 +52,10 @@ def analyze_sales(df: pd.DataFrame):
         plt.savefig(buf2, format='png', dpi=100, bbox_inches='tight')
         plt.close()
         buf2.seek(0)
-        cumulative_sales_chart = base64.b64encode(buf2.read()).decode()
+        img_b64 = base64.b64encode(buf2.read()).decode()
+        cumulative_sales_chart = f"data:image/png;base64,{img_b64}"
     except Exception:
-        cumulative_sales_chart = ""
+        cumulative_sales_chart = None
     return {
         "total_sales": int(total_sales) if total_sales is not None else None,
         "top_region": str(top_region) if top_region is not None else None,
