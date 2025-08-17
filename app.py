@@ -89,8 +89,8 @@ async def analyze_api(file: UploadFile = File(...)):
                 "temp_line_chart": temp_line_chart,
                 "precip_histogram": precip_histogram
             })
-    # Sales
-    elif set(['region', 'sales', 'date']).issubset(cols):
+        # Sales
+        elif set(['region', 'sales', 'date']).issubset(cols):
             total_sales = float(df['sales'].sum()) if 'sales' in df else 0.0
             top_region = df.groupby('region')['sales'].sum().idxmax() if 'region' in df and 'sales' in df else ""
             try:
@@ -154,15 +154,15 @@ async def analyze_api(file: UploadFile = File(...)):
                 "network_graph": blank_base64_png(),
                 "degree_histogram": blank_base64_png()
             })
-            else:
-                # Always return all keys for all known schemas, else error
-                return JSONResponse(
-                    content={"error": "Unrecognized CSV format. Only weather, sales, and network datasets are supported."},
-                    status_code=400
-                )
-        except Exception as e:
-            logger.error(f"Error in /api/: {e}")
-            return JSONResponse(content={"error": str(e)}, status_code=500)
+        else:
+            # Always return all keys for all known schemas, else error
+            return JSONResponse(
+                content={"error": "Unrecognized CSV format. Only weather, sales, and network datasets are supported."},
+                status_code=400
+            )
+    except Exception as e:
+        logger.error(f"Error in /api/: {e}")
+        return JSONResponse(content={"error": str(e)}, status_code=500)
 
 @app.post("/")
 async def root_post(file: UploadFile = File(...)):
