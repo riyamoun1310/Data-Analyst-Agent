@@ -42,8 +42,8 @@ async def analyze_api(file: UploadFile = File(...)):
         csv_string = content.decode('utf-8')
         df = pd.read_csv(io.StringIO(csv_string))
         cols = [c.lower() for c in df.columns]
-    # Weather
-    if set(['date', 'temp_c', 'precip_mm']).issubset(cols):
+        # Weather
+        if set(['date', 'temp_c', 'precip_mm']).issubset(cols):
             avg_temp = float(df['temp_c'].mean()) if 'temp_c' in df else None
             min_temp = float(df['temp_c'].min()) if 'temp_c' in df else None
             max_precip_idx = df['precip_mm'].idxmax() if 'precip_mm' in df else None
@@ -154,15 +154,15 @@ async def analyze_api(file: UploadFile = File(...)):
                 "network_graph": blank_base64_png(),
                 "degree_histogram": blank_base64_png()
             })
-        else:
-            # Always return all keys for all known schemas, else error
-            return JSONResponse(
-                content={"error": "Unrecognized CSV format. Only weather, sales, and network datasets are supported."},
-                status_code=400
-            )
-    except Exception as e:
-        logger.error(f"Error in /api/: {e}")
-        return JSONResponse(content={"error": str(e)}, status_code=500)
+            else:
+                # Always return all keys for all known schemas, else error
+                return JSONResponse(
+                    content={"error": "Unrecognized CSV format. Only weather, sales, and network datasets are supported."},
+                    status_code=400
+                )
+        except Exception as e:
+            logger.error(f"Error in /api/: {e}")
+            return JSONResponse(content={"error": str(e)}, status_code=500)
 
 @app.post("/")
 async def root_post(file: UploadFile = File(...)):
