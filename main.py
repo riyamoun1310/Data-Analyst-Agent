@@ -1,3 +1,4 @@
+
 from fastapi import File, UploadFile
 import pandas as pd
 import io
@@ -36,6 +37,21 @@ app = FastAPI(
     version="2.0.0"
 )
 
+ # POST / endpoint for compatibility with test harnesses that POST to root
+ @app.post("/")
+ async def root_post(file: UploadFile = File(...)):
+     try:
+         content = await file.read()
+         csv_string = content.decode('utf-8')
+         df = pd.read_csv(io.StringIO(csv_string))
+         if validate_weather_columns(df):
+             return analyze_weather(df)
+         elif validate_sales_columns(df):
+             return analyze_sales(df)
+         else:
+             return {"error": "Unrecognized CSV format. Only weather and sales datasets are supported."}
+     except Exception as e:
+         return {"error": str(e)}
 # CORS for all origins (change for production)
 app.add_middleware(
     CORSMiddleware,
