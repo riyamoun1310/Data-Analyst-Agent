@@ -18,12 +18,23 @@ The **Data Analyst Agent API** is a professional-grade FastAPI backend for autom
 - **Dataset Auto-Detection:** Supports both weather and sales datasets, detected by column names.
 - **Statistical Insights:** Computes means, medians, correlations, and more from real data.
 - **Dynamic Visualizations:** Generates base64-encoded matplotlib charts on the fly.
+- **Tabular Views:** Returns summary tables for quick data inspection.
 - **Robust Error Handling:** Graceful responses for invalid input or unrecognized formats.
 - **Production-Ready:** Includes health checks, CORS, logging, and Docker deployment support.
 
 ---
 
 ## 🛠️ API Endpoints
+
+| Endpoint         | Method | Description                                  |
+|------------------|--------|----------------------------------------------|
+| `/`              | GET    | API status, version, and available endpoints |
+| `/health`        | GET    | Health check/status                          |
+| `/api/`          | POST   | Main analysis endpoint (CSV upload)          |
+
+---
+
+## 📋 How to Use
 
 ### Health Check
 
@@ -34,7 +45,7 @@ The **Data Analyst Agent API** is a professional-grade FastAPI backend for autom
 
 - **POST /api/**
 - Accepts: CSV file upload (`form-data`, key: `file`)
-- Returns: JSON with all required keys for weather or sales datasets.
+- Returns: JSON with all required keys for weather or sales datasets, including summary tables and charts.
 
 #### Example (using `curl`):
 
@@ -55,7 +66,11 @@ curl -X POST "http://localhost:8000/api/" -F "file=@yourfile.csv"
   "temp_precip_correlation": 0.42,
   "average_precip_mm": 12.7,
   "temp_line_chart": "<base64-image>",
-  "precip_histogram": "<base64-image>"
+  "precip_histogram": "<base64-image>",
+  "summary_table": [
+    {"date": "2023-07-14", "temp_c": 22.1, "precip_mm": 10.2},
+    {"date": "2023-07-15", "temp_c": 23.5, "precip_mm": 15.3}
+  ]
 }
 ```
 
@@ -68,9 +83,20 @@ curl -X POST "http://localhost:8000/api/" -F "file=@yourfile.csv"
   "bar_chart": "<base64-image>",
   "median_sales": 1200,
   "total_sales_tax": 15000,
-  "cumulative_sales_chart": "<base64-image>"
+  "cumulative_sales_chart": "<base64-image>",
+  "summary_table": [
+    {"date": "2023-07-14", "region": "North", "sales": 1200},
+    {"date": "2023-07-15", "region": "South", "sales": 1300}
+  ]
 }
 ```
+
+---
+
+## 📑 View Tables
+
+- The API includes a `"summary_table"` key in the JSON output, which contains a preview of the first few rows of your uploaded CSV for quick inspection.
+- You can use this to display a table in your frontend or for debugging.
 
 ---
 
@@ -93,18 +119,20 @@ curl -X POST "http://localhost:8000/api/" -F "file=@yourfile.csv"
 
 ---
 
-## 🧪 Testing
+## 🧪 Testing & Usage
 
-- **Swagger UI:** [http://localhost:8000/docs](http://localhost:8000/docs)
+- **Swagger UI:** [http://localhost:8000/docs](http://localhost:8000/docs) (interactive API docs)
 - **Manual Test:** Use `curl` or Postman to POST a CSV file to `/api/`.
+- **Automated Test:** Compatible with most test harnesses—just POST a CSV to `/api/`.
 
 ---
 
 ## 🔒 Security & Best Practices
 
-- CORS is open for development; restrict in production.
-- All outputs are computed from real uploaded files—no hardcoded values.
-- Handles large files and invalid formats gracefully.
+- **CORS:** Open for development; restrict origins in production.
+- **No Hardcoding:** All outputs are computed from real uploaded files.
+- **Graceful Handling:** Handles large files and invalid formats with clear errors.
+- **Logging:** All requests and errors are logged for easy debugging.
 
 ---
 
@@ -124,4 +152,5 @@ curl -X POST "http://localhost:8000/api/" -F "file=@yourfile.csv"
 
 ---
 
-*Built with passion for data science, software
+> *Built with passion for data science, software engineering, and academic excellence.  
+> Ready for real-world deployment
