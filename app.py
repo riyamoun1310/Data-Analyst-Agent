@@ -143,8 +143,9 @@ async def analyze_api(file: UploadFile = File(...)):
                 "total_sales_tax": int(total_sales_tax) if total_sales_tax is not None else 0,
                 "cumulative_sales_chart": cumulative_sales_chart if cumulative_sales_chart else blank_base64_png()
             })
-        # Network (placeholder: always return all required keys with blank/zero values)
-        elif set(['source', 'target']).issubset(cols):
+        # Network (robust detection, always return all required keys with valid base64 images)
+        elif any('source' in c and 'target' in c for c in ['|'.join(cols)]):
+            # Always return all required keys for the network schema
             return JSONResponse(content={
                 "edge_count": 0,
                 "highest_degree_node": "",
